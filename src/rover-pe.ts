@@ -1,5 +1,15 @@
 import {
+  analysesEchantillon,
+  collecterEchantillon,
+  communiquerRover,
+  deplacementRover,
   EtatRover,
+  getAnalyses,
+  getChargeBatterie,
+  getEchantillons,
+  getEtat,
+  getPosition,
+  rechargerBatterie,
   ResultatAnalyse,
   ResultatCollecte,
   ResultatCommunication,
@@ -8,28 +18,23 @@ import {
 } from "./model.js";
 
 export function deplacer(etat: EtatRover, dx: number, dy: number): [EtatRover, ResultatDeplacement] {
-  // Écrire l'implémentation de la fonction deplacer ici.
-  return null as any as [EtatRover, ResultatDeplacement];
+  return deplacementRover(etat, dx, dy);
 }
 
 export function collecter(etat: EtatRover, element: string): [EtatRover, ResultatCollecte] {
-  // Écrire l'implémentation de la fonction collecter ici.
-  return null as any as [EtatRover, ResultatCollecte];
+  return collecterEchantillon(etat, element);
 }
 
 export function analyser(etat: EtatRover): [EtatRover, ResultatAnalyse] {
-  // Écrire l'implémentation de la fonction analyser ici.
-  return null as any as [EtatRover, ResultatAnalyse];
+  return analysesEchantillon(etat);
 }
 
 export function recharger(etat: EtatRover, gain: number): [EtatRover, ResultatRecharge] {
-  // Écrire l'implémentation de la fonction recharger ici.
-  return null as any as [EtatRover, ResultatRecharge];
+  return rechargerBatterie(etat, gain);
 }
 
 export function communiquer(etat: EtatRover, data: {}): [EtatRover, ResultatCommunication] {
-  // Écrire l'implémentation de la fonction communiquer ici.
-  return null as any as [EtatRover, ResultatCommunication];
+  return communiquerRover(etat, data);
 }
 
 export function scenarioA(etatInitial: EtatRover): readonly [EtatRover, ResultatCommunication] {
@@ -39,17 +44,39 @@ export function scenarioA(etatInitial: EtatRover): readonly [EtatRover, Resultat
     analyses: readonly string[];
   }
 
-  // Écrire le scénario A ici, en utilisant les fonctions deplacer, collecter, analyser, recharger et communiquer pour effectuer les actions.
-  return null as any as readonly [EtatRover, ResultatCommunication];
+  const [etat1] = deplacer(etatInitial, 2, 0);
+  const [etat2] = collecter(etat1, "regolithe");
+  const [etat3] = deplacer(etat2, 0, 2);
+  const [etat4] = analyser(etat3);
+
+  const data: FormatDataScenarioA = {
+    message: "Mission accomplie",
+    restants: getEchantillons(etat4),
+    analyses: getAnalyses(etat4),
+  };
+
+  return communiquer(etat4, data);
 }
 
 export function scenarioB(etatInitial: EtatRover): readonly [EtatRover, ResultatCommunication] {
   interface FormatDataScenarioB {
-    position: [number, number];
+    position: readonly [number, number];
     charge: number;
   }
-  // Écrire le scénario B ici, en utilisant les fonctions deplacer, collecter, analyser, recharger et communiquer pour effectuer les actions.
-  return null as any as readonly [EtatRover, ResultatCommunication];
+
+  const [etat1, deplacement] = deplacer(etatInitial, 10, 0);
+  const succesComplet = deplacement.succes && deplacement.complet;
+
+  const [etat2] = succesComplet
+      ? collecter(getEtat(communiquer(etat1, { statut: "Sur site" })), "glace")
+      : recharger(getEtat(communiquer(etat1, { statut: "Arrêt prématuré" })), 50);
+
+  const bilan: FormatDataScenarioB = {
+    position: getPosition(etat2),
+    charge: getChargeBatterie(etat2),
+  };
+
+  return communiquer(etat2, bilan);
 }
 
 export function scenarioC(etatInitial: EtatRover, nbCycles: number): readonly [EtatRover, ResultatCommunication] {
@@ -57,6 +84,26 @@ export function scenarioC(etatInitial: EtatRover, nbCycles: number): readonly [E
     totalAnalyses: number;
     chargeFinale: number;
   }
-  // Écrire le scénario C ici, en utilisant les fonctions deplacer, collecter, analyser, recharger et communiquer pour effectuer les actions.
-  return null as any as readonly [EtatRover, ResultatCommunication];
+
+  function cycleExploration(etat: EtatRover): EtatRover {
+    const [etat1] = deplacer(etat, 1, 0);
+    const [etat2] = collecter(etat1, "roche");
+    const [etat3] = recharger(etat2, 20);
+    return etat3;
+  }
+
+  function explorer(etat: EtatRover, cyclesRestants: number): EtatRover {
+    return cyclesRestants <= 0
+        ? etat
+        : explorer(cycleExploration(etat), cyclesRestants - 1);
+  }
+
+  const [etatFinal] = analyser(explorer(etatInitial, nbCycles));
+
+  const data: FormatDataScenarioC = {
+    totalAnalyses: getAnalyses(etatFinal).length,
+    chargeFinale: getChargeBatterie(etatFinal),
+  };
+
+  return communiquer(etatFinal, data);
 }
